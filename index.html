@@ -1,521 +1,470 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cessna 172S - Simulador Continuo</title>
+    <title>Cessna 172S - Dinámica de Vuelo Continua</title>
     <style>
         :root {
-            --bg-color: #F8F5FF;
-            --text-color: #4B0082;
-            --text-dark: #2E1065;
-            --accent-color: #8B5CF6;
+            --bg: #F8F5FF;
+            --panel: #FFFFFF;
+            --text: #2E1065;
+            --accent: #8B5CF6;
             --danger: #EF4444;
             --success: #10B981;
+            --sky: #4A90E2;
+            --earth: #8B4513;
         }
-
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-dark);
-            margin: 0;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            touch-action: manipulation; /* Evita el zoom táctil doble */
+            background-color: var(--bg); color: var(--text); margin: 0; padding: 10px;
+            display: flex; flex-direction: column; align-items: center;
+            user-select: none; -webkit-user-select: none;
+        }
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h1 { margin: 0; color: var(--accent); font-size: 22px; }
+        .header p { margin: 2px 0; font-weight: bold; font-size: 12px; color: #666; }
+
+        .dashboard {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 900px;
         }
 
-        h1 { color: var(--text-color); margin-bottom: 5px; font-size: 24px; text-align: center;}
-        .credits { color: var(--accent-color); font-weight: bold; margin-bottom: 15px; text-align: center;}
-
-        /* --- Configuración Pre-Vuelo --- */
-        #setup-panel {
-            background-color: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
-            box-sizing: border-box;
+        .panel {
+            background: var(--panel); border-radius: 12px; padding: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; flex-direction: column;
         }
 
-        .input-group { margin: 10px 0; text-align: left; }
-        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px;}
-        .input-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px;}
-
-        #weight-status {
-            margin-top: 15px; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; background-color: #f3f4f6; color: #374151; transition: all 0.3s;
+        .instruments-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
         }
 
-        button {
-            background-color: var(--accent-color); color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; cursor: pointer; transition: background 0.3s; margin-top: 15px; width: 100%; font-weight: bold;
-        }
-        button:hover:not(:disabled) { background-color: #7c3aed; }
-        button:disabled { background-color: #9CA3AF; cursor: not-allowed; opacity: 0.7; }
-
-        /* --- Tablero de Vuelo --- */
-        #flight-panel { display: none; width: 100%; max-width: 900px; }
-
-        .status-banner {
-            background-color: var(--success); color: white; text-align: center; padding: 10px; border-radius: 10px; font-size: 20px; font-weight: bold; margin-bottom: 15px; transition: background-color 0.3s;
-        }
-
-        .instrument-grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;
-        }
-
-        .instrument {
-            background-color: white; border-radius: 15px; padding: 10px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center;
-        }
-
-        .instrument h3 { margin: 0 0 5px 0; font-size: 14px; color: var(--text-color); }
         canvas { max-width: 100%; height: auto; }
-        .data-readout { margin-top: 5px; font-size: 14px; font-weight: bold; }
 
-        /* Barras de Fuerzas */
-        .forces-panel { background-color: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        .force-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px;}
-        .force-label { width: 90px; font-weight: bold; }
-        .force-bar-container { flex-grow: 1; background-color: #eee; height: 15px; border-radius: 10px; overflow: hidden; margin: 0 10px; }
-        .force-bar { height: 100%; width: 0%; transition: width 0.1s linear; }
-        .force-value { width: 50px; text-align: right; }
-
-        /* Controles Táctiles */
-        .touch-controls {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px;
+        /* Controles */
+        .controls-panel {
+            display: flex; flex-direction: column; gap: 15px;
         }
-        
-        .control-btn {
-            background-color: white; border: 2px solid var(--accent-color); color: var(--accent-color); font-size: 18px; font-weight: bold; padding: 20px 10px; border-radius: 10px; margin: 0;
-            user-select: none; -webkit-user-select: none; touch-action: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        .slider-group {
+            display: flex; flex-direction: column;
         }
-        .control-btn:active { background-color: var(--accent-color); color: white; }
-
-        @media (max-width: 600px) {
-            .instrument-grid { grid-template-columns: 1fr 1fr; }
-            .instrument-grid > div:nth-child(3) { grid-column: span 2; display: flex; flex-direction: row; justify-content: center; gap: 20px;}
-            .instrument-grid > div:nth-child(3) canvas { width: 150px; }
-            .force-label { width: 80px; font-size: 12px;}
+        .slider-group label {
+            font-weight: bold; font-size: 14px; margin-bottom: 5px;
+            display: flex; justify-content: space-between;
+        }
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; height: 15px; border-radius: 8px;
+            background: #E5E7EB; outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 25px; height: 25px;
+            border-radius: 50%; background: var(--accent); cursor: pointer;
         }
 
+        /* Gráfica Continua */
+        #graph-canvas { width: 100%; height: 150px; background: #fafafa; border: 1px solid #eee; border-radius: 8px; }
+
+        .status-bar {
+            grid-column: span 2; background: var(--success); color: white;
+            padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 18px;
+            transition: background 0.3s;
+        }
+
+        .data-row { display: flex; justify-content: space-around; font-size: 14px; font-weight: bold; margin-top: 5px;}
+
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+            .status-bar { grid-column: span 1; }
+            .instruments-grid { grid-template-columns: repeat(4, 1fr); }
+        }
     </style>
 </head>
 <body>
 
-    <h1>✈️ Cessna 172S - Simulador</h1>
-    <div class="credits">Diseño: Ing. Hernán Quiroz</div>
-
-    <div id="setup-panel">
-        <h2>Peso y Balance</h2>
-        <div class="input-group">
-            <label>Peso Piloto (lbs):</label>
-            <input type="number" id="weight-pilot" value="180" min="0" max="300" oninput="calculateWeight()">
-        </div>
-        <div class="input-group">
-            <label>Peso Copiloto (lbs):</label>
-            <input type="number" id="weight-copilot" value="0" min="0" max="300" oninput="calculateWeight()">
-        </div>
-        <div class="input-group">
-            <label>Pasajeros Traseros (lbs, Max 400):</label>
-            <input type="number" id="weight-rear" value="0" min="0" max="400" oninput="calculateWeight()">
-        </div>
-        <div class="input-group">
-            <label>Combustible (Galones, Max 53):</label>
-            <input type="number" id="fuel-gallons" value="40" min="0" max="53" oninput="calculateWeight()">
-        </div>
-        
-        <div id="weight-status">Calculando...</div>
-        <button id="btn-start" onclick="startSimulation()">Iniciar Motor y Rodar</button>
+    <div class="header">
+        <h1>✈️ Cessna 172S - Física Continua</h1>
+        <p>Diseño: Ing. Hernán Quiroz | Desarrollado para Pilotos e Ingenieros</p>
     </div>
 
-    <div id="flight-panel">
-        <div id="status-banner" class="status-banner">🛩️ En Tierra</div>
+    <div class="dashboard">
+        <div class="status-bar" id="status-banner">Iniciando Sistemas...</div>
 
-        <div class="instrument-grid">
-            <div class="instrument">
-                <h3>Velocímetro</h3>
-                <canvas id="canvas-airspeed" width="200" height="200"></canvas>
-                <div class="data-readout" id="txt-airspeed">0 KIAS</div>
-            </div>
-            <div class="instrument">
-                <h3>Altímetro</h3>
-                <canvas id="canvas-altimeter" width="200" height="200"></canvas>
-                <div class="data-readout" id="txt-altimeter">0 ft</div>
-            </div>
-            <div class="instrument">
-                <h3>Potencia</h3>
-                <canvas id="canvas-power" width="200" height="200"></canvas>
-                <div class="data-readout" id="txt-power">0%</div>
-            </div>
-        </div>
-
-        <div class="instrument-grid" style="grid-template-columns: 1fr 1fr;">
-            <div class="instrument">
-                <h3>Horizonte Artificial</h3>
-                <canvas id="canvas-attitude" width="200" height="200"></canvas>
-            </div>
-            <div class="forces-panel">
-                <h3 style="margin-top:0; font-size:16px;">Fuerzas (lbs)</h3>
-                <div class="force-row">
-                    <div class="force-label" style="color:#2ca02c;">Sustentación</div>
-                    <div class="force-bar-container"><div id="bar-lift" class="force-bar" style="background-color:#2ca02c;"></div></div>
-                    <div class="force-value" id="val-lift">0</div>
+        <!-- Columna Izquierda: Instrumentos -->
+        <div class="panel">
+            <div class="instruments-grid">
+                <div>
+                    <canvas id="canvas-airspeed" width="200" height="200"></canvas>
+                    <div class="data-row"><span id="txt-airspeed">0 KIAS</span></div>
                 </div>
-                <div class="force-row">
-                    <div class="force-label" style="color:#d62728;">Peso</div>
-                    <div class="force-bar-container"><div id="bar-weight" class="force-bar" style="background-color:#d62728;"></div></div>
-                    <div class="force-value" id="val-weight">0</div>
+                <div>
+                    <canvas id="canvas-altimeter" width="200" height="200"></canvas>
+                    <div class="data-row"><span id="txt-altimeter">0 ft</span></div>
                 </div>
-                <div class="force-row">
-                    <div class="force-label" style="color:#1f77b4;">Empuje</div>
-                    <div class="force-bar-container"><div id="bar-thrust" class="force-bar" style="background-color:#1f77b4;"></div></div>
-                    <div class="force-value" id="val-thrust">0</div>
+                <div>
+                    <canvas id="canvas-attitude" width="200" height="200"></canvas>
+                    <div class="data-row"><span id="txt-pitch">0° Pitch</span></div>
                 </div>
-                <div class="force-row">
-                    <div class="force-label" style="color:#ff7f0e;">Arrastre</div>
-                    <div class="force-bar-container"><div id="bar-drag" class="force-bar" style="background-color:#ff7f0e;"></div></div>
-                    <div class="force-value" id="val-drag">0</div>
+                <div>
+                    <canvas id="canvas-power" width="200" height="200"></canvas>
+                    <div class="data-row"><span id="txt-power">0%</span></div>
                 </div>
             </div>
         </div>
 
-        <!-- NUEVOS CONTROLES TÁCTILES -->
-        <div class="touch-controls">
-            <button class="control-btn" id="btn-pitch-up"
-                onmousedown="keys.ArrowUp = true" onmouseup="keys.ArrowUp = false" onmouseleave="keys.ArrowUp = false"
-                ontouchstart="keys.ArrowUp = true" ontouchend="keys.ArrowUp = false">
-                ⬆️ Subir Morro
-            </button>
-            <button class="control-btn" id="btn-pitch-down"
-                onmousedown="keys.ArrowDown = true" onmouseup="keys.ArrowDown = false" onmouseleave="keys.ArrowDown = false"
-                ontouchstart="keys.ArrowDown = true" ontouchend="keys.ArrowDown = false">
-                ⬇️ Bajar Morro
-            </button>
-            <button class="control-btn" id="btn-accel"
-                onmousedown="keys.w = true" onmouseup="keys.w = false" onmouseleave="keys.w = false"
-                ontouchstart="keys.w = true" ontouchend="keys.w = false">
-                ⚡ Acelerar
-            </button>
-            <button class="control-btn" id="btn-decel"
-                onmousedown="keys.s = true" onmouseup="keys.s = false" onmouseleave="keys.s = false"
-                ontouchstart="keys.s = true" ontouchend="keys.s = false">
-                🛑 Desacelerar
-            </button>
+        <!-- Columna Derecha: Controles y Telemetría -->
+        <div class="panel">
+            <div class="controls-panel">
+                <div class="slider-group">
+                    <label>Potencia del Motor (RPM) <span id="val-throttle">0%</span></label>
+                    <input type="range" id="throttle" min="0" max="100" value="0" oninput="updateControls()">
+                </div>
+                <div class="slider-group">
+                    <label>Flaps <span id="val-flaps">0°</span></label>
+                    <input type="range" id="flaps" min="0" max="30" step="10" value="0" oninput="updateControls()">
+                </div>
+                <div class="slider-group">
+                    <label>Control de Morro (Pitch) <span id="val-pitch">0°</span></label>
+                    <input type="range" id="pitch" min="-15" max="20" value="0" oninput="updateControls()">
+                </div>
+                
+                <div style="font-size: 12px; color: #666; margin-top: 10px;">
+                    <b>Fuerzas Activas:</b><br>
+                    Sustentación: <span id="val-lift" style="color:var(--success);">0</span> lbs | 
+                    Arrastre: <span id="val-drag" style="color:var(--danger);">0</span> lbs<br>
+                    Ángulo de Ataque (AoA): <span id="val-aoa" style="font-weight:bold;">0°</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fila Inferior: Gráfica Continua -->
+        <div class="panel" style="grid-column: 1 / -1;">
+            <label style="font-weight: bold; margin-bottom: 5px; font-size: 14px;">📈 Registro de Vuelo (Tiempo Real: Velocidad vs Altitud)</label>
+            <canvas id="graph-canvas" width="800" height="150"></canvas>
         </div>
     </div>
 
     <script>
-        const G = 32.174; 
-        const WING_AREA = 174; 
-        const MAX_POWER_HP = 180;
-        const PROP_EFF = 0.80;
-        const CD0 = 0.031;
-        const OSWALD_E = 0.85;
-        const ASPECT_RATIO = 7.32;
-        const CL_MAX = 1.5;
-        const EMPTY_WEIGHT = 1663; 
-        const FUEL_WEIGHT_PER_GAL = 6.0; 
-        const MTOW = 2550;
+        // --- CONSTANTES FÍSICAS ---
+        const G = 32.174; // ft/s²
+        const S = 174; // Área alar ft²
+        const MTOW = 2550; // Peso máximo lbs
+        const EMPTY_WEIGHT = 1663; // Peso vacío lbs
+        const FUEL_WEIGHT = 240; // Simulando 40 galones
+        const BASE_WEIGHT = EMPTY_WEIGHT + 180 + FUEL_WEIGHT; // Piloto + Combustible
+        const MAX_THRUST_LBS = 450;
+        const CD0_CLEAN = 0.031;
 
+        // --- ESTADO DEL SIMULADOR ---
         let state = {
-            running: false, time: 0, velocity: 0, altitude: 0, pitch: 0, power: 0, weight: 0, fuel: 0, isAirborne: false, isStalled: false,
-            forces: { lift: 0, drag: 0, thrust: 0, weight: 0 }
+            velocity: 0,       // ft/s (0 inicial)
+            altitude: 0,       // ft
+            pitch: 0,          // grados (elevador)
+            throttle: 0,       // 0-100%
+            flaps: 0,          // 0, 10, 20, 30 grados
+            isAirborne: false,
+            weight: BASE_WEIGHT,
+            aoa: 0,
+            lift: 0,
+            drag: 0
         };
 
-        // Variables de control (Teclado y Táctil)
-        let keys = { w: false, s: false, ArrowUp: false, ArrowDown: false };
-        let lastTime = 0;
+        // Variables para la gráfica
+        let graphData = { time: [], speed: [], alt: [] };
+        let timeElapsed = 0;
 
-        // --- LÓGICA DE PESO EN TIEMPO REAL ---
-        function calculateWeight() {
-            const pilot = parseFloat(document.getElementById('weight-pilot').value) || 0;
-            const copilot = parseFloat(document.getElementById('weight-copilot').value) || 0;
-            const rear = parseFloat(document.getElementById('weight-rear').value) || 0;
-            const fuel = parseFloat(document.getElementById('fuel-gallons').value) || 0;
-            
-            const currentWeight = EMPTY_WEIGHT + pilot + copilot + rear + (fuel * FUEL_WEIGHT_PER_GAL);
-            
-            const statusDiv = document.getElementById('weight-status');
-            const btnStart = document.getElementById('btn-start');
+        // Elementos UI
+        const els = {
+            throttle: document.getElementById('throttle'),
+            flaps: document.getElementById('flaps'),
+            pitch: document.getElementById('pitch'),
+            valThrottle: document.getElementById('val-throttle'),
+            valFlaps: document.getElementById('val-flaps'),
+            valPitch: document.getElementById('val-pitch'),
+            txtSpeed: document.getElementById('txt-airspeed'),
+            txtAlt: document.getElementById('txt-altimeter'),
+            txtPower: document.getElementById('txt-power'),
+            banner: document.getElementById('status-banner')
+        };
 
-            if (currentWeight > MTOW) {
-                statusDiv.style.backgroundColor = '#FEE2E2'; statusDiv.style.color = '#991B1B';
-                statusDiv.innerHTML = `⛔ <b>SOBREPESO:</b> ${currentWeight.toFixed(0)} lbs / ${MTOW} lbs<br><small>Reduce carga para despegar.</small>`;
-                btnStart.disabled = true;
-            } else {
-                statusDiv.style.backgroundColor = '#D1FAE5'; statusDiv.style.color = '#065F46';
-                statusDiv.innerHTML = `✅ <b>Peso Total:</b> ${currentWeight.toFixed(0)} lbs / ${MTOW} lbs`;
-                btnStart.disabled = false;
-            }
+        function updateControls() {
+            state.throttle = parseFloat(els.throttle.value);
+            state.flaps = parseFloat(els.flaps.value);
+            state.pitch = parseFloat(els.pitch.value);
+            
+            els.valThrottle.innerText = state.throttle + "%";
+            els.valFlaps.innerText = state.flaps + "°";
+            els.valPitch.innerText = state.pitch + "°";
         }
 
-        window.onload = calculateWeight;
-
-        // Eventos de teclado
-        window.addEventListener('keydown', e => { 
-            if (keys.hasOwnProperty(e.key)) {
-                keys[e.key] = true; 
-                if(e.key.startsWith('Arrow')) e.preventDefault(); // Evita scroll
-            }
-        });
-        window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
-        window.addEventListener('keydown', e => { 
-            if (e.key === ' ' && (!state.running || state.isStalled)) resetSimulation();
-        });
-
-        function startSimulation() {
-            const pilot = parseFloat(document.getElementById('weight-pilot').value) || 0;
-            const copilot = parseFloat(document.getElementById('weight-copilot').value) || 0;
-            const rear = parseFloat(document.getElementById('weight-rear').value) || 0;
-            const fuel = parseFloat(document.getElementById('fuel-gallons').value) || 0;
-            
-            state.fuel = fuel;
-            state.weight = EMPTY_WEIGHT + pilot + copilot + rear + (fuel * FUEL_WEIGHT_PER_GAL);
-
-            document.getElementById('setup-panel').style.display = 'none';
-            document.getElementById('flight-panel').style.display = 'block';
-            
-            state.running = true;
-            lastTime = performance.now();
-            requestAnimationFrame(gameLoop);
-        }
-
-        function resetSimulation() {
-            state.velocity = 0; state.altitude = 0; state.pitch = 0; state.power = 0;
-            state.isAirborne = false; state.isStalled = false;
-            document.getElementById('status-banner').style.backgroundColor = '#10B981';
-            document.getElementById('status-banner').innerText = '🛩️ En Tierra';
-            lastTime = performance.now();
-            requestAnimationFrame(gameLoop);
-        }
-
-        function gameLoop(timestamp) {
-            if (!state.running) return;
-            let dt = (timestamp - lastTime) / 1000; 
+        // --- BUCLE PRINCIPAL FÍSICO ---
+        let lastTime = performance.now();
+        
+        function loop(timestamp) {
+            let dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
-            if (dt > 0.1) dt = 0.1; 
+            if (dt > 0.1) dt = 0.1; // Evitar saltos si la pestaña se oculta
 
-            updatePhysics(dt);
-            updateUI();
-            drawInstruments();
-            requestAnimationFrame(gameLoop);
+            updateFlightDynamics(dt);
+            renderUI();
+            
+            timeElapsed += dt;
+            if (timeElapsed > 0.1) { // Guardar punto en la gráfica cada 0.1s
+                recordGraphData();
+                timeElapsed = 0;
+            }
+            drawGraph();
+
+            requestAnimationFrame(loop);
         }
 
-        function updatePhysics(dt) {
-            if (keys.w && state.power < 100) state.power += 20 * dt;
-            if (keys.s && state.power > 0) state.power -= 20 * dt;
-
-            if (keys.ArrowUp && state.isAirborne) state.pitch += 15 * dt;
-            if (keys.ArrowDown && state.isAirborne) state.pitch -= 15 * dt;
+        function updateFlightDynamics(dt) {
+            const rho = 0.002377; // Densidad nivel del mar (simplificada)
             
-            if (state.pitch > 20) state.pitch = 20;
-            if (state.pitch < -20) state.pitch = -20;
-
-            if (!state.isAirborne && state.pitch > 0) {
-                if (state.velocity > 55 * 1.68781) { 
-                    state.pitch += 5 * dt;
-                } else {
-                    state.pitch = 0; 
-                }
-            }
-
-            const rho = 0.002377 * Math.exp(-state.altitude / 30000); 
-
-            let thrust = 0;
-            if (state.power > 0) {
-                const power_ft_lb_s = (state.power / 100) * MAX_POWER_HP * 550;
-                if (state.velocity > 5) {
-                    thrust = (power_ft_lb_s * PROP_EFF) / state.velocity;
-                } else {
-                    thrust = 450; 
-                }
-            }
-
-            let cl = 0.3 + (state.pitch * 0.08);
-            if (cl < 0) cl = 0;
-            if (cl > CL_MAX) cl = CL_MAX;
-
+            // 1. Calcular sustentación requerida para volar nivelado (Cl_required)
             const q = 0.5 * rho * (state.velocity ** 2);
-            const lift = q * WING_AREA * cl;
-            const cd = CD0 + (cl ** 2) / (Math.PI * OSWALD_E * ASPECT_RATIO);
-            const drag = q * WING_AREA * cd;
+            
+            // El ángulo de ataque (AoA) es la diferencia entre donde apunta el morro (Pitch)
+            // y la trayectoria real de vuelo. En este simulador 2D simplificado:
+            let cl_flaps = state.flaps * 0.015; // Los flaps aumentan el Cl base
+            let cl_base = 0.2 + cl_flaps + (state.pitch * 0.06);
+            
+            // Si estamos en tierra
+            if (!state.isAirborne && state.velocity < 50) {
+                cl_base = 0.2 + cl_flaps; 
+            }
+            
+            if (cl_base < 0) cl_base = 0;
+            if (cl_base > 1.8) cl_base = 1.8; // Stall aerodinámico
+            
+            state.lift = q * S * cl_base;
+            
+            // Arrastre (Cd) - Aumenta con los flaps y con la sustentación
+            let cd0 = CD0_CLEAN + (state.flaps * 0.002);
+            let cd_induced = (cl_base ** 2) / (Math.PI * 0.85 * 7.32);
+            state.drag = q * S * (cd0 + cd_induced);
 
-            state.forces = { lift, drag, thrust, weight: state.weight };
+            // Empuje (Thrust) - Disminuye con la velocidad
+            let thrust = 0;
+            if (state.throttle > 0) {
+                let max_t = (state.throttle / 100) * MAX_THRUST_LBS;
+                if (state.velocity > 50) {
+                    thrust = max_t * (50 / state.velocity); // Simplificación de hélice
+                } else {
+                    thrust = max_t;
+                }
+            }
+
+            // Integración de fuerzas
             const mass = state.weight / G;
             
-            if (state.isAirborne) {
-                const weight_component = state.weight * Math.sin(state.pitch * Math.PI / 180);
-                const net_force = thrust - drag - weight_component;
-                state.velocity += (net_force / mass) * dt;
+            // Aceleración horizontal (Velocidad)
+            // Si está en tierra, hay fricción
+            let friction = state.isAirborne ? 0 : (state.weight * 0.04);
+            
+            // Componente del peso (si el morro está arriba, el avión frena)
+            let gravity_component = state.weight * Math.sin(state.pitch * Math.PI / 180);
 
-                let vertical_force = lift - state.weight;
-                let vertical_accel = vertical_force / mass;
-                state.altitude += vertical_accel * dt * 60;
-
-                if (state.altitude <= 0) {
-                    state.altitude = 0;
-                    state.isAirborne = false;
-                    if (state.pitch > 0) state.pitch = 0;
-                }
-            } else {
-                const rolling_resistance = state.weight * 0.03; 
-                let net_force = thrust - drag - rolling_resistance;
-                state.velocity += (net_force / mass) * dt;
-                if (lift > state.weight) state.isAirborne = true;
-            }
-
+            let net_force_x = thrust - state.drag - friction - gravity_component;
+            state.velocity += (net_force_x / mass) * dt;
             if (state.velocity < 0) state.velocity = 0;
 
-            const vs_kts = Math.sqrt((2 * state.weight) / (rho * WING_AREA * CL_MAX)) / 1.68781;
-            if (state.isAirborne && state.velocity / 1.68781 < vs_kts) {
-                state.isStalled = true;
-            } else if (state.velocity / 1.68781 > vs_kts + 5) {
-                state.isStalled = false;
-            }
+            // Fuerza Vertical (Ascenso/Descenso)
+            let net_lift = state.lift - (state.weight * Math.cos(state.pitch * Math.PI / 180));
+            
+            if (state.isAirborne) {
+                let vertical_accel = net_lift / mass;
+                // Integramos para obtener velocidad vertical (aprox)
+                let vertical_speed = vertical_accel * 10; 
+                state.altitude += vertical_speed * dt;
 
-            if (state.isStalled && state.isAirborne) {
-                state.pitch -= 30 * dt; 
-                if (state.pitch < -30) state.pitch = -30;
-                if (state.altitude <= 0) {
-                    state.altitude = 0; state.isAirborne = false; state.isStalled = false; state.velocity = 0; state.running = false;
-                    document.getElementById('status-banner').style.backgroundColor = '#EF4444';
-                    document.getElementById('status-banner').innerText = '💥 AVIÓN ESTRELLADO - Recarga la página';
-                }
-            }
-
-            if (state.power > 0) {
-                const burn_rate = (state.power / 100) * 9; 
-                state.fuel -= (burn_rate / 3600) * dt;
-                state.weight -= (burn_rate / 3600 * FUEL_WEIGHT_PER_GAL) * dt;
-            }
-        }
-
-        function updateUI() {
-            const kts = state.velocity / 1.68781;
-            document.getElementById('txt-airspeed').innerText = `${kts.toFixed(0)} KIAS`;
-            document.getElementById('txt-altimeter').innerText = `${state.altitude.toFixed(0)} ft`;
-            document.getElementById('txt-power').innerText = `${state.power.toFixed(0)}%`;
-
-            const maxForce = 3000;
-            document.getElementById('bar-lift').style.width = `${Math.min(100, (state.forces.lift / maxForce) * 100)}%`;
-            document.getElementById('bar-weight').style.width = `${Math.min(100, (state.forces.weight / maxForce) * 100)}%`;
-            document.getElementById('bar-thrust').style.width = `${Math.min(100, (state.forces.thrust / maxForce) * 100)}%`;
-            document.getElementById('bar-drag').style.width = `${Math.min(100, (state.forces.drag / maxForce) * 100)}%`;
-
-            document.getElementById('val-lift').innerText = state.forces.lift.toFixed(0);
-            document.getElementById('val-weight').innerText = state.forces.weight.toFixed(0);
-            document.getElementById('val-thrust').innerText = state.forces.thrust.toFixed(0);
-            document.getElementById('val-drag').innerText = state.forces.drag.toFixed(0);
-
-            const banner = document.getElementById('status-banner');
-            if (state.isStalled) {
-                banner.style.backgroundColor = '#EF4444'; banner.innerText = '🚨 ¡PÉRDIDA! (STALL)';
-            } else if (state.isAirborne) {
-                if (state.forces.lift > state.weight * 1.02) {
-                    banner.style.backgroundColor = '#10B981'; banner.innerText = '📈 Ascendiendo';
-                } else if (state.forces.lift < state.weight * 0.98) {
-                    banner.style.backgroundColor = '#F59E0B'; banner.innerText = '📉 Descendiendo';
-                } else {
-                    banner.style.backgroundColor = '#3B82F6'; banner.innerText = '✈️ Vuelo Nivelado';
+                if (state.altitude <= 0 && vertical_speed < 0) {
+                    state.altitude = 0;
+                    state.isAirborne = false;
                 }
             } else {
-                banner.style.backgroundColor = '#10B981'; banner.innerText = '🛩️ En Tierra (Rodando)';
+                // Chequeo de despegue
+                if (state.lift > state.weight && state.pitch > 0) {
+                    state.isAirborne = true;
+                }
+            }
+
+            // Chequeo de Stall (Pérdida)
+            let stall_speed = Math.sqrt((2 * state.weight) / (rho * S * 1.8));
+            if (state.isAirborne && state.velocity < stall_speed && state.pitch > 2) {
+                // Stall: El avión cae bruscamente
+                state.altitude -= 50 * dt;
+                state.pitch -= 20 * dt;
+                els.banner.style.background = 'var(--danger)';
+                els.banner.innerText = '🚨 ¡STALL! - Baje el morro';
+            } else {
+                // Actualizar Banner
+                if (!state.isAirborne) {
+                    els.banner.style.background = 'var(--success)';
+                    els.banner.innerText = '🛩️ En Tierra (Rodando)';
+                } else {
+                    els.banner.style.background = 'var(--accent)';
+                    els.banner.innerText = '✈️ En Vuelo';
+                }
+            }
+
+            // Consumo de Combustible
+            if (state.throttle > 0) {
+                state.weight -= 0.01 * dt; // Pérdida de peso gradual
             }
         }
 
-        // --- DIBUJO DE INSTRUMENTOS ---
-        function drawInstruments() {
-            drawAirspeed(state.velocity / 1.68781);
+        // --- RENDERIZADO UI ---
+        function renderUI() {
+            let kts = state.velocity / 1.68781;
+            els.txtSpeed.innerText = kts.toFixed(0) + " KIAS";
+            els.txtAlt.innerText = state.altitude.toFixed(0) + " ft";
+            els.txtPower.innerText = state.throttle + "%";
+            
+            document.getElementById('val-lift').innerText = state.lift.toFixed(0);
+            document.getElementById('val-drag').innerText = state.drag.toFixed(0);
+            
+            // Cálculo aproximado del AoA para mostrar
+            let aoa = state.pitch - (state.isAirborne ? 2 : 0); 
+            document.getElementById('val-aoa').innerText = aoa.toFixed(1) + "°";
+
+            drawAirspeed(kts);
             drawAltimeter(state.altitude);
-            drawPower(state.power);
+            drawPower(state.throttle);
             drawAttitude(state.pitch, 0);
         }
 
-        function drawAirspeed(kts) {
-            const canvas = document.getElementById('canvas-airspeed');
-            const ctx = canvas.getContext('2d');
-            const cx = canvas.width / 2; const cy = canvas.height / 2; const r = cx - 20;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const startAngle = 135 * Math.PI / 180; const endAngle = 405 * Math.PI / 180;
-            const sweep = endAngle - startAngle;
-            const drawArc = (val1, val2, color, width) => {
-                const a1 = startAngle + (val1 / 200) * sweep; const a2 = startAngle + (val2 / 200) * sweep;
-                ctx.beginPath(); ctx.arc(cx, cy, r, a1, a2); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
-            };
-            drawArc(0, 200, '#ddd', 15); drawArc(40, 85, '#fff', 11); drawArc(48, 129, 'green', 11); drawArc(129, 163, 'yellow', 11); drawArc(163, 163.1, 'red', 11);
-            ctx.fillStyle = 'black'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            for (let i = 0; i <= 200; i += 20) {
-                const a = startAngle + (i / 200) * sweep;
-                ctx.fillText(i, cx + Math.cos(a) * (r + 15), cy + Math.sin(a) * (r + 15));
+        // --- GRÁFICA CONTINUA ---
+        function recordGraphData() {
+            graphData.time.push(timeElapsed);
+            graphData.speed.push(state.velocity / 1.68781); // KIAS
+            graphData.alt.push(state.altitude);
+            
+            // Mantener solo los últimos 100 puntos
+            if (graphData.time.length > 100) {
+                graphData.time.shift(); graphData.speed.shift(); graphData.alt.shift();
             }
-            const angle = startAngle + (Math.min(kts, 200) / 200) * sweep;
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle) * (r - 10), cy + Math.sin(angle) * (r - 10));
+        }
+
+        function drawGraph() {
+            const canvas = document.getElementById('graph-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (graphData.speed.length < 2) return;
+
+            const maxSpeed = 180;
+            const maxAlt = 12000;
+            
+            // Dibujar Línea de Velocidad (Azul)
+            ctx.beginPath();
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < graphData.speed.length; i++) {
+                let x = (i / 100) * canvas.width;
+                let y = canvas.height - ((graphData.speed[i] / maxSpeed) * canvas.height);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Dibujar Línea de Altitud (Verde)
+            ctx.beginPath();
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < graphData.alt.length; i++) {
+                let x = (i / 100) * canvas.width;
+                let y = canvas.height - ((graphData.alt[i] / maxAlt) * canvas.height);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Leyenda
+            ctx.fillStyle = 'blue'; ctx.fillRect(10, 10, 10, 10); ctx.fillStyle = 'black'; ctx.font = '12px Arial'; ctx.fillText('Velocidad', 25, 20);
+            ctx.fillStyle = 'green'; ctx.fillRect(110, 10, 10, 10); ctx.fillStyle = 'black'; ctx.fillText('Altitud', 125, 20);
+        }
+
+        // --- FUNCIONES DE DIBUJO DE INSTRUMENTOS (Idénticas a la versión anterior para mantener diseño) ---
+        function drawAirspeed(kts) {
+            const ctx = document.getElementById('canvas-airspeed').getContext('2d');
+            const cx = 100, cy = 100, r = 80;
+            ctx.clearRect(0, 0, 200, 200);
+            const start = 135 * Math.PI / 180, end = 405 * Math.PI / 180, sweep = end - start;
+            const arc = (v1, v2, color, w) => {
+                ctx.beginPath(); ctx.arc(cx, cy, r, start + (v1/200)*sweep, start + (v2/200)*sweep);
+                ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
+            };
+            arc(0, 200, '#ddd', 15); arc(40, 85, '#fff', 11); arc(48, 129, 'green', 11); arc(129, 163, 'yellow', 11); arc(163, 163.1, 'red', 11);
+            ctx.fillStyle = 'black'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            for (let i = 0; i <= 200; i += 40) {
+                let a = start + (i/200)*sweep;
+                ctx.fillText(i, cx + Math.cos(a)*(r+15), cy + Math.sin(a)*(r+15));
+            }
+            let angle = start + (Math.min(kts, 200)/200)*sweep;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle)*(r-10), cy + Math.sin(angle)*(r-10));
             ctx.strokeStyle = 'red'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2 * Math.PI); ctx.fillStyle = 'black'; ctx.fill();
+            ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2*Math.PI); ctx.fillStyle = 'black'; ctx.fill();
         }
 
         function drawAltimeter(alt) {
-            const canvas = document.getElementById('canvas-altimeter');
-            const ctx = canvas.getContext('2d');
-            const cx = canvas.width / 2; const cy = canvas.height / 2; const r = cx - 20;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3; ctx.stroke();
+            const ctx = document.getElementById('canvas-altimeter').getContext('2d');
+            const cx = 100, cy = 100, r = 80;
+            ctx.clearRect(0, 0, 200, 200);
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3; ctx.stroke();
             ctx.fillStyle = 'black'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             for (let i = 0; i < 10; i++) {
-                const a = (i * 36 - 90) * Math.PI / 180;
-                ctx.fillText(i, cx + Math.cos(a) * (r - 15), cy + Math.sin(a) * (r - 15));
+                let a = (i * 36 - 90) * Math.PI / 180;
+                ctx.fillText(i, cx + Math.cos(a)*(r-15), cy + Math.sin(a)*(r-15));
             }
-            const drawNeedle = (val, len, w, color) => {
-                const a = (val * 360 - 90) * Math.PI / 180;
-                ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
-                ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
+            const needle = (val, len, w, c) => {
+                let a = (val * 360 - 90) * Math.PI / 180;
+                ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a)*len, cy + Math.sin(a)*len);
+                ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke();
             };
-            drawNeedle((alt % 100000) / 100000, r * 0.5, 3, 'orange');
-            drawNeedle((alt % 10000) / 10000, r * 0.75, 3, 'green');
-            drawNeedle((alt % 1000) / 1000, r * 0.9, 2, 'black');
-            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = 'black'; ctx.fill();
+            needle((alt % 100000) / 100000, r*0.5, 3, 'orange');
+            needle((alt % 10000) / 10000, r*0.75, 3, 'green');
+            needle((alt % 1000) / 1000, r*0.9, 2, 'black');
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2*Math.PI); ctx.fillStyle = 'black'; ctx.fill();
         }
 
         function drawPower(power) {
-            const canvas = document.getElementById('canvas-power');
-            const ctx = canvas.getContext('2d');
-            const cx = canvas.width / 2; const cy = canvas.height / 2; const r = cx - 20;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const startAngle = 135 * Math.PI / 180; const endAngle = 405 * Math.PI / 180;
-            const sweep = endAngle - startAngle;
-            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, endAngle); ctx.strokeStyle = 'green'; ctx.lineWidth = 12; ctx.stroke();
+            const ctx = document.getElementById('canvas-power').getContext('2d');
+            const cx = 100, cy = 100, r = 80;
+            ctx.clearRect(0, 0, 200, 200);
+            const start = 135 * Math.PI / 180, end = 405 * Math.PI / 180, sweep = end - start;
+            ctx.beginPath(); ctx.arc(cx, cy, r, start, end); ctx.strokeStyle = 'green'; ctx.lineWidth = 12; ctx.stroke();
             ctx.fillStyle = 'black'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             for (let i = 0; i <= 100; i += 25) {
-                const a = startAngle + (i / 100) * sweep;
-                ctx.fillText(i + '%', cx + Math.cos(a) * (r + 15), cy + Math.sin(a) * (r + 15));
+                let a = start + (i/100)*sweep;
+                ctx.fillText(i + '%', cx + Math.cos(a)*(r+15), cy + Math.sin(a)*(r+15));
             }
-            const angle = startAngle + (Math.min(power, 100) / 100) * sweep;
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle) * (r - 10), cy + Math.sin(angle) * (r - 10));
+            let angle = start + (Math.min(power, 100)/100)*sweep;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle)*(r-10), cy + Math.sin(angle)*(r-10));
             ctx.strokeStyle = 'red'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2 * Math.PI); ctx.fillStyle = 'black'; ctx.fill();
+            ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 2*Math.PI); ctx.fillStyle = 'black'; ctx.fill();
         }
 
         function drawAttitude(pitch, roll) {
-            const canvas = document.getElementById('canvas-attitude');
-            const ctx = canvas.getContext('2d');
-            const cx = canvas.width / 2; const cy = canvas.height / 2; const r = cx - 20;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const ctx = document.getElementById('canvas-attitude').getContext('2d');
+            const cx = 100, cy = 100, r = 80;
+            ctx.clearRect(0, 0, 200, 200);
             ctx.save();
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.clip();
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.clip();
             ctx.translate(cx, cy); ctx.rotate(roll * Math.PI / 180);
-            const pitchOffset = pitch * 4; ctx.translate(0, pitchOffset);
-            ctx.fillStyle = '#4A90E2'; ctx.fillRect(-canvas.width, -canvas.height, canvas.width * 2, canvas.height);
-            ctx.fillStyle = '#8B4513'; ctx.fillRect(-canvas.width, 0, canvas.width * 2, canvas.height);
-            ctx.beginPath(); ctx.moveTo(-canvas.width, 0); ctx.lineTo(canvas.width, 0);
+            let pitchOffset = pitch * 4; ctx.translate(0, pitchOffset);
+            ctx.fillStyle = 'var(--sky)'; ctx.fillRect(-200, -200, 400, 200);
+            ctx.fillStyle = 'var(--earth)'; ctx.fillRect(-200, 0, 400, 200);
+            ctx.beginPath(); ctx.moveTo(-200, 0); ctx.lineTo(200, 0);
             ctx.strokeStyle = 'white'; ctx.lineWidth = 3; ctx.stroke();
             ctx.restore();
-            ctx.beginPath(); ctx.moveTo(cx - 25, cy); ctx.lineTo(cx + 25, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+            ctx.beginPath(); ctx.moveTo(cx-25, cy); ctx.lineTo(cx+25, cy); ctx.moveTo(cx, cy-8); ctx.lineTo(cx, cy+8);
             ctx.strokeStyle = 'orange'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.strokeStyle = 'black'; ctx.lineWidth = 5; ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.strokeStyle = 'black'; ctx.lineWidth = 5; ctx.stroke();
         }
+
+        // Iniciar simulación automáticamente
+        window.onload = () => {
+            updateControls();
+            requestAnimationFrame(loop);
+        };
     </script>
 </body>
 </html>
